@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 import { SlashCommand } from "../../structure/index.js";
 import { authNotConfiguredEmbed, formatExpiryDetailed } from "../../utils/authEmbeds.js";
+import { isIgnorableInteractionError } from "../../structure/functions/discordErrors.js";
 
 export default new SlashCommand({
     data: new SlashCommandBuilder()
@@ -16,10 +17,14 @@ export default new SlashCommand({
             });
         }
 
-        const isAuthenticated = await client.swiggyAuth.isAuthenticated(interaction.user.id);
+        try {
+            // Defer first so slow/paused Supabase doesn't expire the interaction (10062).
+            await interaction.deferReply({ ephemeral: true });
 
-        if (!isAuthenticated) {
-            return interaction.reply({
+            const isAuthenticated = await client.swiggyAuth.isAuthenticated(interaction.user.id);
+
+            if (!isAuthenticated) {
+                return interaction.editReply({
                 embeds: [
                     new EmbedBuilder()
                         .setColor("Yellow")
@@ -31,23 +36,21 @@ export default new SlashCommand({
                             inline: false
                         })
                 ],
-                flags: MessageFlags.Ephemeral
             });
         }
 
         const expiry = await client.swiggyAuth.getTokenExpiry(interaction.user.id);
         if (!expiry) {
-            return interaction.reply({
+            return interaction.editReply({
                 embeds: [
                     new EmbedBuilder()
                         .setColor("Red")
                         .setTitle("❌ Error")
                         .setDescription("Unable to retrieve token expiry information."),
                 ],
-                flags: MessageFlags.Ephemeral
             });
         }
-        return interaction.reply({
+        return interaction.editReply({
             embeds: [
                 new EmbedBuilder()
                     .setColor("Green")
@@ -75,7 +78,26 @@ export default new SlashCommand({
                     })
                     .setFooter({ text: "Token will auto-refresh when needed" })
             ],
-            flags: MessageFlags.Ephemeral
         });
+        } catch (error) {
+            if (isIgnorableInteractionError(error)) return;
+            client.logger.error("AUTH", `Authstatus failed: ${error instanceof Error ? error.message : String(error)}`);
+            try {
+                const payload = {
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor("Red")
+                            .setTitle("❌ Error")
+                            .setDescription("Unable to check authentication status. The database may be temporarily unavailable — please try again in a minute."),
+                    ],
+                };
+                if (interaction.deferred || interaction.replied) {
+                    return await interaction.editReply(payload);
+                }
+                return await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
+            } catch (replyError) {
+                if (!isIgnorableInteractionError(replyError)) throw replyError;
+            }
+        }
     }
 });

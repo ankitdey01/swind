@@ -6,7 +6,7 @@
     "scripts": {
         "lint": "eslint . --ext .ts",
         "fix": "eslint . --ext .ts --fix",
-        "test": "tsc && node --test dist/utils/tokenEncryption.test.js",
+        "test": "tsc && node --test dist/utils/*.test.js",
         "start": "tsc && node ."
     },
     "keywords": [

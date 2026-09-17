@@ -10,7 +10,7 @@ import { EmbedBuilder } from "discord.js";
 const SECONDS_PER_DAY = 86_400;
 const SECONDS_PER_HOUR = 3_600;
 
-/** Embed shown when the bot was started without `SWIGGY_CLIENT_ID` configured. */
+/** Embed shown when Swiggy auth is unavailable (defensive; auth is always initialized at startup). */
 export function authNotConfiguredEmbed(): EmbedBuilder {
   return new EmbedBuilder()
     .setColor("Red")

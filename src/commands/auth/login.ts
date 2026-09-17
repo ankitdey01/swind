@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder, MessageFlags, ComponentType, ButtonStyle } from "discord.js";
 import { SlashCommand } from "../../structure/index.js";
 import { authNotConfiguredEmbed, formatExpiryShort } from "../../utils/authEmbeds.js";
+import { isIgnorableInteractionError } from "../../structure/functions/discordErrors.js";
 
 export default new SlashCommand({
     data: new SlashCommandBuilder()
@@ -17,11 +18,15 @@ export default new SlashCommand({
         }
 
         try {
+        // Defer first: Supabase I/O can take longer than Discord's ~3s
+        // interaction window. A paused/slow database must not cause 10062.
+        await interaction.deferReply({ ephemeral: true });
+
         // Check if user is already authenticated
         if (await client.swiggyAuth.isAuthenticated(interaction.user.id)) {
             const expiryText = formatExpiryShort(await client.swiggyAuth.getTokenExpiry(interaction.user.id));
 
-            return interaction.reply({
+            return interaction.editReply({
                 embeds: [
                     new EmbedBuilder()
                         .setColor("Yellow")
@@ -40,25 +45,23 @@ export default new SlashCommand({
                             }
                         )
                 ],
-                flags: MessageFlags.Ephemeral
             });
         }
 
         // Generate authorization URL
         const authUrl = await client.swiggyAuth.getAuthorizationUrl(interaction.user.id);
         if (!authUrl) {
-            return interaction.reply({
+            return interaction.editReply({
                 embeds: [
                     new EmbedBuilder()
                         .setColor("Red")
                         .setTitle("❌ Error")
                         .setDescription("Failed to generate authentication URL. Please try again later.")
                 ],
-                flags: MessageFlags.Ephemeral
             });
         }
 
-        return interaction.reply({
+        return interaction.editReply({
             embeds: [
                 new EmbedBuilder()
                     .setColor("Blurple")
@@ -93,19 +96,28 @@ export default new SlashCommand({
                     ]
                 }
             ],
-            flags: MessageFlags.Ephemeral
         });
         } catch (error) {
+            if (isIgnorableInteractionError(error)) return;
             client.logger.error("AUTH", `Login failed: ${error instanceof Error ? error.message : String(error)}`);
-            return interaction.reply({
-                embeds: [
-                    new EmbedBuilder()
-                        .setColor("Red")
-                        .setTitle("Login Failed")
-                        .setDescription("An error occurred while starting authentication. Please try again later.")
-                ],
-                flags: MessageFlags.Ephemeral
-            });
+            try {
+                const payload = {
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor("Red")
+                            .setTitle("Login Failed")
+                            .setDescription(
+                                "An error occurred while starting authentication. The database may be temporarily unavailable (e.g. Supabase paused) — please try again in a minute."
+                            )
+                    ],
+                };
+                if (interaction.deferred || interaction.replied) {
+                    return await interaction.editReply(payload);
+                }
+                return await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
+            } catch (replyError) {
+                if (!isIgnorableInteractionError(replyError)) throw replyError;
+            }
         }
     }
 });

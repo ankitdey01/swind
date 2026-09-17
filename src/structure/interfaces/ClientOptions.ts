@@ -7,7 +7,6 @@ export interface CustomClientOptions extends ClientOptions {
 export interface ClientDataOptions {
     handlers: HandlersOptions;
     token: string;
-    clientId: string;
     color: ColorResolvable;
     developers?: string[];
 }

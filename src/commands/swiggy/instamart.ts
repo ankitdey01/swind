@@ -214,17 +214,29 @@ export default new SlashCommand({
   category: "Swiggy",
 
   async execute(interaction, client) {
-    const accessToken = await getSwiggyAccessToken(client, interaction.user.id);
-    if (!accessToken) {
-      return interaction.reply("Use `/login` to connect your Swiggy account before managing Instamart.");
-    }
-
     try {
-      const subcommand = interaction.options.getSubcommand();
+      // Defer BEFORE any Supabase/MCP I/O so a slow or paused database
+      // never expires the interaction (10062 "application did not respond").
+      // Checkout stays ephemeral; everything else stays public like before.
       const group = interaction.options.getSubcommandGroup(false);
+      const subcommandName = interaction.options.getSubcommand(false);
+      if (!interaction.deferred && !interaction.replied) {
+        if (group === null && subcommandName === "checkout") {
+          await interaction.deferReply({ ephemeral: true });
+        } else {
+          await interaction.deferReply();
+        }
+      }
 
-      if (group === "coupon") {
-        await interaction.deferReply();
+      const accessToken = await getSwiggyAccessToken(client, interaction.user.id);
+      if (!accessToken) {
+        return interaction.editReply("Use `/login` to connect your Swiggy account before managing Instamart.");
+      }
+
+      const subcommand = interaction.options.getSubcommand();
+      const groupName = interaction.options.getSubcommandGroup(false);
+
+      if (groupName === "coupon") {
 
         if (subcommand === "find") {
           const addressId = interaction.options.getString("address-id", true).trim();
@@ -242,7 +254,6 @@ export default new SlashCommand({
       }
 
       if (subcommand === "show") {
-        await interaction.deferReply();
         const cart = await getInstamartCart(accessToken);
 
         if (checkResultMessage(cart)) {
@@ -253,7 +264,6 @@ export default new SlashCommand({
       }
 
       if (subcommand === "clear") {
-        await interaction.deferReply();
         const result = await clearInstamartCart(accessToken);
 
         if (checkResultMessage(result)) {
@@ -264,12 +274,10 @@ export default new SlashCommand({
       }
 
       if (subcommand === "add") {
-        await interaction.deferReply();
         return addToCart(interaction, accessToken);
       }
 
       if (subcommand === "address") {
-        await interaction.deferReply();
         const addresses = await getInstamartAddresses(accessToken);
 
         if (checkResultMessage(addresses)) {
@@ -283,7 +291,6 @@ export default new SlashCommand({
       }
 
       if (subcommand === "history") {
-        await interaction.deferReply();
         const count = normalizeSwiggyOrderCount(interaction.options.getInteger("count"));
         const activeOnly = interaction.options.getBoolean("active-only") ?? false;
         const result = await swiggyTools.instamart.getOrders(accessToken, { count, orderType: "DASH", activeOnly });
@@ -299,7 +306,6 @@ export default new SlashCommand({
       }
 
       if (subcommand === "most-ordered") {
-        await interaction.deferReply();
         const addressId = interaction.options.getString("address-id", true).trim();
         const result = await swiggyTools.instamart.yourGoToItems(accessToken, { addressId });
 
@@ -314,7 +320,6 @@ export default new SlashCommand({
       }
 
       if (subcommand === "search") {
-        await interaction.deferReply();
         const addressId = interaction.options.getString("address-id", true).trim();
         const product = interaction.options.getString("product", true).trim();
         const result = await swiggyTools.instamart.searchProducts(accessToken, { addressId, query: product });
@@ -331,7 +336,6 @@ export default new SlashCommand({
       }
 
       if (subcommand === "track-order") {
-        await interaction.deferReply();
         const orderId = String(interaction.options.getInteger("order-id", true));
         const lat = interaction.options.getInteger("lat", true);
         const lng = interaction.options.getInteger("lng", true);
@@ -347,7 +351,6 @@ export default new SlashCommand({
       }
 
       if (subcommand === "checkout") {
-        await interaction.deferReply({ ephemeral: true });
         const addressId = interaction.options.getString("address-id", true).trim();
         const paymentChoice = interaction.options.getString("payment-method", true).toUpperCase();
 
@@ -384,7 +387,6 @@ export default new SlashCommand({
       }
 
       if (subcommand === "order-details") {
-        await interaction.deferReply();
         const orderId = interaction.options.getString("order-id", true).trim();
         const result = await swiggyTools.instamart.getOrderDetails(accessToken, { orderId });
 
@@ -396,7 +398,7 @@ export default new SlashCommand({
         return interaction.editReply({ embeds: [buildInstamartOrderDetailsEmbed(result)] });
       }
 
-      return interaction.reply("Unknown Instamart action.");
+      return interaction.editReply("Unknown Instamart action.");
     } catch (error) {
       return handleInstamartError(interaction, error);
     }

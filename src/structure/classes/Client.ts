@@ -4,6 +4,7 @@ import { Handler } from "./index.js";
 import { Logger, logger } from "./Logger.js";
 import { SwiggyAuth } from "../../utils/swiggyAuth.js";
 import { OAuthCallbackServer } from "./OAuthCallbackServer.js";
+import { startSupabaseKeepalive } from "../../utils/supabaseKeepalive.js";
 
 export class CustomClient extends Client {
     commands: Collection<string, BaseApplicationCommand> = new Collection();
@@ -22,17 +23,17 @@ export class CustomClient extends Client {
     }
 
     async start() {
-        // Initialize Swiggy Auth
-        const swiggyClientId = process.env.SWIGGY_CLIENT_ID;
+        // Initialize Swiggy Auth (OAuth 2.1 + PKCE public client — no static
+        // client identity; see docs/start/authenticate).
         const oauthCallbackUrl = process.env.OAUTH_CALLBACK_URL || "http://localhost:3000/auth/callback";
 
-        if (!swiggyClientId) {
-            this.logger.error("Auth", "SWIGGY_CLIENT_ID environment variable not set");
-        } else {
-            this.swiggyAuth = new SwiggyAuth(swiggyClientId, oauthCallbackUrl);
-            this.oauthServer = new OAuthCallbackServer(3000, this.swiggyAuth, this);
-            this.oauthServer.start();
-        }
+        this.swiggyAuth = new SwiggyAuth(oauthCallbackUrl);
+        this.oauthServer = new OAuthCallbackServer(3000, this.swiggyAuth, this);
+        this.oauthServer.start();
+
+        // Free-plan Supabase auto-pauses after ~7d idle; a light periodic
+        // query counts as activity. Never throws.
+        startSupabaseKeepalive();
 
         // Register the process-level error traps and attach all event/command
         // listeners *before* logging in, so the `once` ClientReady handler is

@@ -44,11 +44,9 @@ function databaseError(operation: string, error: { message: string }): Error {
 }
 
 export class SwiggyAuth {
-    private clientId: string;
     private callbackUrl: string;
 
-    constructor(clientId: string, callbackUrl: string) {
-        this.clientId = clientId;
+    constructor(callbackUrl: string) {
         this.callbackUrl = callbackUrl;
 
         // Fail at startup with an actionable message instead of discovering a
@@ -95,7 +93,6 @@ export class SwiggyAuth {
 
         const params = new URLSearchParams({
             response_type: "code",
-            client_id: this.clientId,
             redirect_uri: this.callbackUrl,
             code_challenge: codeChallenge,
             code_challenge_method: "S256",
@@ -123,7 +120,6 @@ export class SwiggyAuth {
                     grant_type: "authorization_code",
                     code,
                     code_verifier: authState.code_verifier,
-                    client_id: this.clientId,
                     redirect_uri: this.callbackUrl,
                 }),
             });

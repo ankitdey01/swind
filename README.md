@@ -60,7 +60,6 @@ npm install
 ### 3. Environment Variables (`.env`)
 ```env
 DISCORD_TOKEN=your_discord_bot_token
-SWIGGY_CLIENT_ID=your_swiggy_client_id
 DEVELOPER_IDS=your_discord_user_id
 OAUTH_CALLBACK_URL=https://auth.xxxx.tech/auth/callback
 SUPABASE_URL=https://xxxx.supabase.co
