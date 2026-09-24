@@ -23,11 +23,10 @@ export class CustomClient extends Client {
     }
 
     async start() {
-        // Initialize Swiggy Auth (OAuth 2.1 + PKCE public client — no static
-        // client identity; see docs/start/authenticate).
+        // OAuth 2.1 + PKCE — client_id from DCR/static registration (see docs/start/authenticate).
         const oauthCallbackUrl = process.env.OAUTH_CALLBACK_URL || "http://localhost:3000/auth/callback";
 
-        this.swiggyAuth = new SwiggyAuth(oauthCallbackUrl);
+        this.swiggyAuth = new SwiggyAuth(oauthCallbackUrl, process.env.SWIGGY_CLIENT_ID);
         this.oauthServer = new OAuthCallbackServer(3000, this.swiggyAuth, this);
         this.oauthServer.start();
 

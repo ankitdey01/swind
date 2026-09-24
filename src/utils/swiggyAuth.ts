@@ -45,9 +45,17 @@ function databaseError(operation: string, error: { message: string }): Error {
 
 export class SwiggyAuth {
     private callbackUrl: string;
+    private clientId: string;
 
-    constructor(callbackUrl: string) {
+    constructor(callbackUrl: string, clientId?: string) {
         this.callbackUrl = callbackUrl;
+        const resolvedClientId = clientId ?? process.env.SWIGGY_CLIENT_ID;
+        if (!resolvedClientId) {
+            throw new Error(
+                "SWIGGY_CLIENT_ID is required. Register via POST /auth/register (DCR) or copy it into your .env file."
+            );
+        }
+        this.clientId = resolvedClientId;
 
         // Fail at startup with an actionable message instead of discovering a
         // missing storage secret only after a user starts an OAuth flow.
@@ -93,6 +101,7 @@ export class SwiggyAuth {
 
         const params = new URLSearchParams({
             response_type: "code",
+            client_id: this.clientId,
             redirect_uri: this.callbackUrl,
             code_challenge: codeChallenge,
             code_challenge_method: "S256",
